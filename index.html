@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Bird</title>
+    <link rel="icon" href="Flappy.png" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: url('FlappyBg.png') no-repeat center center/cover;
+            overflow: hidden;
+            position: relative;
+            flex-direction: column;
+        }
+
+        canvas {
+            background: transparent;
+        }
+
+        #restartButton {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 10px 20px;
+            font-size: 20px;
+            background-color: #ffcc00;
+            border: none;
+            cursor: pointer;
+            display: none;
+            border-radius: 5px;
+        }
+
+        .header {
+            width: 100%;
+            height: 50px;
+            background: rgba(0, 0, 0, 0);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            color: rgb(0, 0, 0);
+            font-size: 22px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            border-bottom: 3px solid #000;
+            font-weight: bold;
+
+        }
+
+
+
+        .social-icons a {
+            color: rgb(0, 0, 0);
+            text-decoration: none;
+            font-size: 20px;
+            transition: color 0.2s ease;
+        }
+
+        .social-links {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .social-links a {
+            color: rgb(0, 0, 0);
+
+        }
+
+        .social-links a:hover {
+            transform: scale(1.2);
+            color: #ffffff;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <div class="score"><span id="score">0</span></div>
+        <div class="social-links">
+            <a href="https://www.linkedin.com/in/mr-dhananjay-patil-0172902a2/" target="_blank">
+                <i class="fab fa-linkedin-in"></i>
+            </a>
+            <a href="https://github.com/BinaryC0DE4U" target="_blank">
+                <i class="fab fa-github"></i>
+            </a>
+        </div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <button id="restartButton">Restart</button>
+    <audio id="dieSound" src="FlappyBirdDie.mp3"></audio>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const restartButton = document.getElementById("restartButton");
+        const scoreDisplay = document.getElementById("score");
+
+
+        canvas.width = window.innerWidth > 500 ? 400 : window.innerWidth - 20;
+        canvas.height = window.innerHeight > 700 ? 600 : window.innerHeight - 100;
+
+        let birdImg = new Image();
+        birdImg.src = 'Flappy.png';
+
+        let bird, pipes, frame, gameStarted, gameOver, countdown, score;
+
+        function resetGame() {
+            bird = {
+                x: 50,
+                y: canvas.height / 2,
+                width: 50,
+                height: 40,
+                gravity: 0.2,   // Reduced from 0.3
+                lift: -5.0,     // Reduced from -6.5
+                velocity: 0
+            };
+
+            pipes = [];
+            frame = 0;
+            score = 0;
+            gameStarted = false;
+            gameOver = false;
+            countdown = 4;
+            restartButton.style.display = "none";
+            scoreDisplay.textContent = "Score: 0";
+            startCountdown();
+        }
+
+
+        function drawCountdown() {
+            ctx.fillStyle = "white";
+            ctx.font = "50px Arial";
+            ctx.textAlign = "center";
+            let text = countdown > 0 ? countdown : "GO!";
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+        }
+
+        function startCountdown() {
+            let interval = setInterval(() => {
+                countdown--;
+                if (countdown < 0) {
+                    clearInterval(interval);
+                    gameStarted = true;
+                    gameLoop();
+                } else {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    drawCountdown();
+                }
+            }, 1000);
+        }
+
+        function drawBird() {
+            ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
+        }
+
+        function updateBird() {
+            if (gameOver) return;
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
+            if (bird.y + bird.height >= canvas.height || bird.y <= 0) {
+                endGame();
+            }
+        }
+
+
+        function drawPipes() {
+            pipes.forEach(pipe => {
+                let gradient = ctx.createLinearGradient(0, 0, pipe.width, 0);
+
+                // Bamboo-like gradient (lighter & realistic)
+                gradient.addColorStop(0, "#3d8b3d"); // Dark green edges
+                gradient.addColorStop(0.2, "#91d188"); // Softer green
+                gradient.addColorStop(0.5, "#bff7a3"); // Brightest center
+                gradient.addColorStop(0.8, "#91d188");
+                gradient.addColorStop(1, "#3d8b3d");
+
+                ctx.fillStyle = gradient;
+
+                // Draw top pipe
+                ctx.fillRect(pipe.x, 0, pipe.width, pipe.top);
+
+                // Draw bottom pipe
+                ctx.fillRect(pipe.x, canvas.height - pipe.bottom, pipe.width, pipe.bottom);
+
+                // Add bamboo rings (knots) - Light Green
+                ctx.fillStyle = "#62a35e"; // Lighter green
+                for (let i = 50; i < pipe.top; i += 70) {
+                    ctx.fillRect(pipe.x, i, pipe.width, 5);
+                }
+                for (let i = canvas.height - pipe.bottom + 50; i < canvas.height; i += 70) {
+                    ctx.fillRect(pipe.x, i, pipe.width, 5);
+                }
+
+                // Add subtle shading to give depth (lighter shadow)
+                ctx.fillStyle = "rgba(0, 0, 0, 0.15)"; // Softer shadow
+                ctx.fillRect(pipe.x, 0, 5, pipe.top);
+                ctx.fillRect(pipe.x, canvas.height - pipe.bottom, 5, pipe.bottom);
+            });
+        }
+
+
+        function updatePipes() {
+            if (frame % 170 === 0) { // Increased from 90
+                let gap = 170;
+                let top = Math.random() * (canvas.height / 2);
+                let bottom = canvas.height - top - gap;
+                pipes.push({ x: canvas.width, width: 40, top, bottom });
+            }
+
+
+            pipes.forEach(pipe => {
+                pipe.x -= 1.5;
+                if (pipe.x + pipe.width < 0) {
+                    pipes.shift();
+                    score++;
+                    scoreDisplay.textContent = "Score: " + score;
+
+                }
+                function checkCollision(bird, pipe) {
+                    let birdRadius = bird.width / 3; // Reduce touch radius
+
+                    // Closest point on the pipe to the bird
+                    let closestX = Math.max(pipe.x, Math.min(bird.x, pipe.x + pipe.width));
+                    let closestY = Math.max(pipe.top, Math.min(bird.y, pipe.top + pipe.height));
+
+                    // Distance between bird center and closest pipe point
+                    let distance = Math.sqrt((bird.x - closestX) ** 2 + (bird.y - closestY) ** 2);
+
+                    // Check collision using a radius instead of a box
+                    return distance < birdRadius;
+                }
+
+                // Inside updatePipes(), modify collision check:
+                pipes.forEach((pipe) => {
+                    if (checkCollision(bird, pipe)) {
+                        endGame();
+                    }
+                });
+
+
+
+                let hitboxShrink = 5; // Reduce collision hitbox size (adjustable)
+
+                if (
+                    bird.x + bird.width - hitboxShrink > pipe.x &&
+                    bird.x + hitboxShrink < pipe.x + pipe.width &&
+                    (bird.y + hitboxShrink < pipe.top ||
+                        bird.y + bird.height - hitboxShrink > canvas.height - pipe.bottom)
+                ) {
+                    endGame();
+                }
+
+
+            });
+        }
+
+        function endGame() {
+            gameOver = true;
+            restartButton.style.display = "block";
+
+        }
+        function endGame() {
+            if (!gameOver) {
+                document.getElementById("dieSound").play();
+            }
+            gameOver = true;
+            restartButton.style.display = "block";
+        }
+
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (!gameStarted) {
+                drawCountdown();
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+            drawBird();
+            updateBird();
+            drawPipes();
+            updatePipes();
+            frame++;
+            if (!gameOver) requestAnimationFrame(gameLoop);
+        }
+
+        window.addEventListener("resize", () => {
+            canvas.width = window.innerWidth > 500 ? 400 : window.innerWidth - 20;
+            canvas.height = window.innerHeight > 700 ? 600 : window.innerHeight - 100;
+        });
+
+        window.addEventListener("keydown", () => { if (!gameOver) bird.velocity = bird.lift; });
+        window.addEventListener("touchstart", () => { if (!gameOver) bird.velocity = bird.lift; });
+        restartButton.addEventListener("click", resetGame);
+
+
+
+        resetGame();
+    </script>
+</body>
+
+</html>
